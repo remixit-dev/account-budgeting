@@ -145,18 +145,22 @@ class CrossoveredBudgetLines(models.Model):
             acc_ids = line.general_budget_id.account_ids.ids
             date_to = line.date_to
             date_from = line.date_from
-            if line.analytic_account_id.id and date_from and date_to:
-                self.env.cr.execute(
-                    """
+            
+            if line.analytic_account_id and date_from and date_to:
+                plan_column = line.analytic_account_id.root_plan_id._column_name()
+                query = f"""
                     SELECT SUM(amount)
                     FROM account_analytic_line
-                    WHERE account_id=%s
-                        AND (date between %s
-                        AND %s)
-                        AND general_account_id=ANY(%s)""",
-                    (line.analytic_account_id.id, date_from, date_to, acc_ids),
+                    WHERE {plan_column}=%s
+                        AND (date between %s AND %s)
+                        AND general_account_id=ANY(%s)
+                """
+
+                self.env.cr.execute(
+                query, (line.analytic_account_id.id, date_from, date_to, acc_ids)
                 )
                 result = self.env.cr.fetchone()[0] or 0.0
+
             line.practical_amount = result
 
     @api.depends("paid_date", "date_from", "date_to", "planned_amount")
